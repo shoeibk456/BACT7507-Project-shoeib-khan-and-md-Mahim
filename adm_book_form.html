@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<!-- adm_book_form.html - one form used for both Add Book and Edit Book (Team member responsible: Mahim - HTML/CSS) -->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Book Form - LibConnect</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="app">
+    <!-- Admin sidebar -->
+    <div class="sidebar sidebar-admin">
+        <div class="sidebar-logo">&#128218; LibConnect Admin</div>
+        <nav>
+            <a href="{{ url_for('adm_home') }}" class="{{ 'active' if active == 'home' }}">Dashboard</a>
+            <a href="{{ url_for('adm_catalog') }}" class="{{ 'active' if active == 'catalog' }}">Books</a>
+            <a href="{{ url_for('adm_members') }}" class="{{ 'active' if active == 'members' }}">Students</a>
+            <a href="{{ url_for('adm_subjects') }}" class="{{ 'active' if active == 'subjects' }}">Categories</a>
+            <a href="{{ url_for('adm_loan_records') }}" class="{{ 'active' if active == 'loans' }}">Borrow Records</a>
+        </nav>
+        <a href="{{ url_for('logout') }}" class="logout">Logout</a>
+    </div>
+        <div class="main">
+            {% with messages = get_flashed_messages(with_categories=true) %}{% for category, message in messages %}<div class="flash flash-{{ category }}">{{ message }}</div>{% endfor %}{% endwith %}
+
+            <div class="topbar"><h1>{{ 'Edit Book' if editing else 'Add New Book' }}</h1></div>
+            <div class="card">
+                <!-- enctype is needed so the cover image file can be uploaded -->
+                <form method="POST" enctype="multipart/form-data">
+                    <div class="form-grid">
+                        <div class="form-group"><label>Title *</label><input type="text" name="title" value="{{ values.title or '' }}"></div>
+                        <div class="form-group"><label>Author *</label><input type="text" name="author" value="{{ values.author or '' }}"></div>
+                        <div class="form-group"><label>ISBN</label><input type="text" name="isbn" value="{{ values.isbn or '' }}"></div>
+                        <div class="form-group"><label>Publisher</label><input type="text" name="publisher" value="{{ values.publisher or '' }}"></div>
+                        <div class="form-group"><label>Year</label><input type="number" name="publish_year" value="{{ values.publish_year or '' }}" placeholder="e.g. 2024"></div>
+                        <div class="form-group"><label>Category *</label>
+                            <select name="subject_id">
+                                {% for s in subjects %}<option value="{{ s.subject_id }}" {{ 'selected' if values.subject_id|string == s.subject_id|string }}>{{ s.subject_name }}</option>{% endfor %}
+                            </select>
+                        </div>
+                        <div class="form-group"><label>Total copies *</label><input type="number" name="total_copies" min="0" value="{{ values.total_copies if values.total_copies is defined else '' }}" placeholder="e.g. 5"></div>
+                        <div class="form-group"><label>eBook available?</label><br>
+                            <label><input type="radio" name="ebook_available" value="yes" {{ 'checked' if values.ebook_available == 'yes' }} style="width:auto;"> Yes</label>
+                            &nbsp;&nbsp;
+                            <label><input type="radio" name="ebook_available" value="no" {{ 'checked' if values.ebook_available != 'yes' }} style="width:auto;"> No</label>
+                        </div>
+                        <div class="form-group full"><label>eBook link (needed if eBook is "Yes")</label><input type="url" name="ebook_link" value="{{ values.ebook_link or '' }}" placeholder="https://example.com/ebook"></div>
+                        <div class="form-group full"><label>Cover image (png, jpg, gif or webp, max 2 MB)</label>
+                            <input type="file" name="cover_image" accept=".png,.jpg,.jpeg,.gif,.webp">
+                            {% if values.cover_image %}<p class="hint">Current cover: {{ values.cover_image }}. Choose a new file only if you want to replace it.</p>{% endif %}
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-purple">Save Book</button>
+                    <a href="{{ url_for('adm_catalog') }}" class="btn btn-outline">Cancel</a>
+                </form>
+            </div>
+        </div>
+    </div>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

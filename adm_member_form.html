@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<!-- adm_member_form.html - one form used for both Add Student and Edit Student (Team member responsible: Mahim - HTML/CSS) -->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Form - LibConnect</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="app">
+    <!-- Admin sidebar -->
+    <div class="sidebar sidebar-admin">
+        <div class="sidebar-logo">&#128218; LibConnect Admin</div>
+        <nav>
+            <a href="{{ url_for('adm_home') }}" class="{{ 'active' if active == 'home' }}">Dashboard</a>
+            <a href="{{ url_for('adm_catalog') }}" class="{{ 'active' if active == 'catalog' }}">Books</a>
+            <a href="{{ url_for('adm_members') }}" class="{{ 'active' if active == 'members' }}">Students</a>
+            <a href="{{ url_for('adm_subjects') }}" class="{{ 'active' if active == 'subjects' }}">Categories</a>
+            <a href="{{ url_for('adm_loan_records') }}" class="{{ 'active' if active == 'loans' }}">Borrow Records</a>
+        </nav>
+        <a href="{{ url_for('logout') }}" class="logout">Logout</a>
+    </div>
+        <div class="main">
+            {% with messages = get_flashed_messages(with_categories=true) %}{% for category, message in messages %}<div class="flash flash-{{ category }}">{{ message }}</div>{% endfor %}{% endwith %}
+
+            <div class="topbar"><h1>{{ 'Edit Student' if editing else 'Add New Student' }}</h1></div>
+            <div class="card">
+                <form method="POST">
+                    <div class="form-grid">
+                        <div class="form-group"><label>Student ID *</label><input type="text" name="student_id" value="{{ values.student_id or '' }}" placeholder="e.g. STU007"></div>
+                        <div class="form-group"><label>Full name *</label><input type="text" name="full_name" value="{{ values.full_name or '' }}"></div>
+                        <div class="form-group"><label>Email *</label><input type="email" name="email" value="{{ values.email or '' }}"></div>
+                        <div class="form-group"><label>Course</label><input type="text" name="course" value="{{ values.course or '' }}" placeholder="e.g. Information Technology"></div>
+                        <div class="form-group"><label>Phone</label><input type="text" name="phone" value="{{ values.phone or '' }}"></div>
+                        <div class="form-group"><label>Status</label>
+                            <select name="status">
+                                <option value="Active" {{ 'selected' if values.status != 'Inactive' }}>Active</option>
+                                <option value="Inactive" {{ 'selected' if values.status == 'Inactive' }}>Inactive</option>
+                            </select>
+                        </div>
+                        <div class="form-group full">
+                            <label>{{ 'New password (leave blank to keep the current one)' if editing else 'Starting password * (at least 6 characters)' }}</label>
+                            <input type="password" name="password" autocomplete="new-password">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-purple">Save Student</button>
+                    <a href="{{ url_for('adm_members') }}" class="btn btn-outline">Cancel</a>
+                </form>
+            </div>
+        </div>
+    </div>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

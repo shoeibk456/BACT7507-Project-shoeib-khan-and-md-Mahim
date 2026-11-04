@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<!-- adm_home.html - admin dashboard: real SQL statistics and two Chart.js charts (Team member responsible: Mahim - HTML/CSS) -->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - LibConnect</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="app">
+    <!-- Admin sidebar -->
+    <div class="sidebar sidebar-admin">
+        <div class="sidebar-logo">&#128218; LibConnect Admin</div>
+        <nav>
+            <a href="{{ url_for('adm_home') }}" class="{{ 'active' if active == 'home' }}">Dashboard</a>
+            <a href="{{ url_for('adm_catalog') }}" class="{{ 'active' if active == 'catalog' }}">Books</a>
+            <a href="{{ url_for('adm_members') }}" class="{{ 'active' if active == 'members' }}">Students</a>
+            <a href="{{ url_for('adm_subjects') }}" class="{{ 'active' if active == 'subjects' }}">Categories</a>
+            <a href="{{ url_for('adm_loan_records') }}" class="{{ 'active' if active == 'loans' }}">Borrow Records</a>
+        </nav>
+        <a href="{{ url_for('logout') }}" class="logout">Logout</a>
+    </div>
+        <div class="main">
+            {% with messages = get_flashed_messages(with_categories=true) %}{% for category, message in messages %}<div class="flash flash-{{ category }}">{{ message }}</div>{% endfor %}{% endwith %}
+
+            <div class="topbar">
+                <h1>Admin Dashboard</h1>
+                <div class="user-pill"><div class="avatar">{{ session['full_name'][0] }}</div>{{ session['full_name'] }}</div>
+            </div>
+            <div class="stat-cards">
+                <div class="stat-card"><div class="value">{{ stats.total_books }}</div><div class="label">Total Book Copies</div></div>
+                <div class="stat-card"><div class="value">{{ stats.available }}</div><div class="label">Available</div></div>
+                <div class="stat-card"><div class="value">{{ stats.borrowed }}</div><div class="label">Borrowed</div></div>
+                <div class="stat-card {{ 'warn' if stats.overdue }}"><div class="value">{{ stats.overdue }}</div><div class="label">Overdue</div></div>
+                <div class="stat-card"><div class="value">{{ stats.students }}</div><div class="label">Students</div></div>
+            </div>
+            <div class="two-col-wide">
+                <div class="card"><h3>Books Overview by Category</h3><div class="chart-box"><canvas id="categoryChart"></canvas></div></div>
+                <div class="card"><h3>Loan Status</h3><div class="chart-box"><canvas id="statusChart"></canvas></div></div>
+            </div>
+            <div class="card">
+                <h3>Recent Borrow Records</h3>
+                <div class="table-wrap"><table>
+                    <tr><th>Student</th><th>Book</th><th>Borrowed</th><th>Status</th></tr>
+                    {% for r in recent %}
+                    <tr><td>{{ r.student_name }}</td><td>{{ r.book_title }}</td><td>{{ r.borrow_date|dmy }}</td><td>{% if r.loan_status == 'Borrowed' %}<span class="badge badge-blue">Borrowed</span>{% elif r.loan_status == 'Overdue' %}<span class="badge badge-red">Overdue</span>{% else %}<span class="badge badge-green">Returned</span>{% endif %}</td></tr>
+                    {% else %}
+                    <tr><td colspan="4" class="empty">No borrowing yet.</td></tr>
+                    {% endfor %}
+                </table></div>
+            </div>
+        </div>
+    </div>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <!-- Chart.js 4.4.1 (MIT licence) is stored inside the project so charts work offline,
+         then our own charts.js draws the charts -->
+    <script src="{{ url_for('static', filename='js/chart.umd.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/charts.js') }}"></script>
+    <script>
+        // Flask puts the SQL results into these variables (tojson converts Python data to JavaScript data)
+        var chartData = {{ chart | tojson }};
+        var statusData = {{ status_chart | tojson }};
+        renderCategoryChart(chartData.labels, chartData.available, chartData.borrowed);
+        renderStatusChart(statusData);
+    </script>
+</body>
+</html>

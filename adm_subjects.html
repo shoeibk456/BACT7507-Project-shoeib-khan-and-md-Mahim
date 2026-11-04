@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<!-- adm_subjects.html - category list with add, edit and delete (Team member responsible: Mahim - HTML/CSS) -->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Categories - LibConnect</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="app">
+    <!-- Admin sidebar -->
+    <div class="sidebar sidebar-admin">
+        <div class="sidebar-logo">&#128218; LibConnect Admin</div>
+        <nav>
+            <a href="{{ url_for('adm_home') }}" class="{{ 'active' if active == 'home' }}">Dashboard</a>
+            <a href="{{ url_for('adm_catalog') }}" class="{{ 'active' if active == 'catalog' }}">Books</a>
+            <a href="{{ url_for('adm_members') }}" class="{{ 'active' if active == 'members' }}">Students</a>
+            <a href="{{ url_for('adm_subjects') }}" class="{{ 'active' if active == 'subjects' }}">Categories</a>
+            <a href="{{ url_for('adm_loan_records') }}" class="{{ 'active' if active == 'loans' }}">Borrow Records</a>
+        </nav>
+        <a href="{{ url_for('logout') }}" class="logout">Logout</a>
+    </div>
+        <div class="main">
+            {% with messages = get_flashed_messages(with_categories=true) %}{% for category, message in messages %}<div class="flash flash-{{ category }}">{{ message }}</div>{% endfor %}{% endwith %}
+
+            <div class="topbar"><h1>Manage Categories</h1></div>
+            <div class="card">
+                <h3>{{ 'Edit category' if editing else 'Add a new category' }}</h3>
+                <form method="POST" action="{{ url_for('adm_subjects', subject_id=editing.subject_id) if editing else url_for('adm_subjects') }}" class="search-row" style="margin-bottom:0;">
+                    <input type="text" name="subject_name" value="{{ editing.subject_name if editing else '' }}" placeholder="Category name, e.g. Cyber Security">
+                    <button type="submit" class="btn btn-purple">{{ 'Save changes' if editing else '+ Add Category' }}</button>
+                    {% if editing %}<a href="{{ url_for('adm_subjects') }}" class="btn btn-outline">Cancel</a>{% endif %}
+                </form>
+            </div>
+            <div class="card"><div class="table-wrap"><table>
+                <tr><th>ID</th><th>Category name</th><th>Books</th><th>Action</th></tr>
+                {% for s in subjects %}
+                <tr>
+                    <td>{{ s.subject_id }}</td><td>{{ s.subject_name }}</td><td>{{ s.book_count }}</td>
+                    <td style="white-space:nowrap;">
+                        <a href="{{ url_for('adm_subjects', subject_id=s.subject_id) }}" class="btn btn-outline btn-sm">Edit</a>
+                        <form method="POST" action="{{ url_for('adm_subject_delete', subject_id=s.subject_id) }}" class="inline-form" data-confirm="Delete this category?">
+                            <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="4" class="empty">No categories yet.</td></tr>
+                {% endfor %}
+            </table></div></div>
+        </div>
+    </div>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

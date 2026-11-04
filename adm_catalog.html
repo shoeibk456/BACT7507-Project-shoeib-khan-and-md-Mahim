@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<!-- adm_catalog.html - admin book list with search, category filter, edit and delete (Team member responsible: Mahim - HTML/CSS) -->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manage Books - LibConnect</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="app">
+    <!-- Admin sidebar -->
+    <div class="sidebar sidebar-admin">
+        <div class="sidebar-logo">&#128218; LibConnect Admin</div>
+        <nav>
+            <a href="{{ url_for('adm_home') }}" class="{{ 'active' if active == 'home' }}">Dashboard</a>
+            <a href="{{ url_for('adm_catalog') }}" class="{{ 'active' if active == 'catalog' }}">Books</a>
+            <a href="{{ url_for('adm_members') }}" class="{{ 'active' if active == 'members' }}">Students</a>
+            <a href="{{ url_for('adm_subjects') }}" class="{{ 'active' if active == 'subjects' }}">Categories</a>
+            <a href="{{ url_for('adm_loan_records') }}" class="{{ 'active' if active == 'loans' }}">Borrow Records</a>
+        </nav>
+        <a href="{{ url_for('logout') }}" class="logout">Logout</a>
+    </div>
+        <div class="main">
+            {% with messages = get_flashed_messages(with_categories=true) %}{% for category, message in messages %}<div class="flash flash-{{ category }}">{{ message }}</div>{% endfor %}{% endwith %}
+
+            <div class="topbar"><h1>Manage Books</h1><a href="{{ url_for('adm_book_form') }}" class="btn btn-purple">+ Add Book</a></div>
+            <form method="GET" action="{{ url_for('adm_catalog') }}" class="search-row">
+                <input type="text" name="q" value="{{ term }}" placeholder="Search by title, author or ISBN...">
+                <select name="subject">
+                    <option value="">All Categories</option>
+                    {% for s in subjects %}<option value="{{ s.subject_name }}" {{ 'selected' if s.subject_name == subject }}>{{ s.subject_name }}</option>{% endfor %}
+                </select>
+                <button type="submit" class="btn btn-primary">Search</button>
+                <a href="{{ url_for('adm_catalog') }}" class="btn btn-outline">Clear</a>
+            </form>
+            <div class="card"><div class="table-wrap"><table>
+                <tr><th>Book</th><th>Author</th><th>ISBN</th><th>Category</th><th>Copies</th><th>eBook</th><th>Action</th></tr>
+                {% for b in books %}
+                <tr>
+                    <td><div class="cell-book">{% if b.cover_image %}<img class="thumb" src="{{ url_for('static', filename='uploads/covers/' + b.cover_image) }}" alt="">{% endif %}{{ b.title }}</div></td>
+                    <td>{{ b.author }}</td><td>{{ b.isbn or '-' }}</td><td>{{ b.subject_name or '-' }}</td>
+                    <td>{{ b.available_copies }} / {{ b.total_copies }}</td>
+                    <td>{% if b.ebook_available %}<span class="badge badge-blue">Yes</span>{% else %}<span class="badge badge-grey">No</span>{% endif %}</td>
+                    <td style="white-space:nowrap;">
+                        <a href="{{ url_for('adm_book_form', catalog_id=b.catalog_id) }}" class="btn btn-outline btn-sm">Edit</a>
+                        <!-- Delete is a POST form (never a plain link) and main.js asks "Are you sure?" first -->
+                        <form method="POST" action="{{ url_for('adm_book_delete', catalog_id=b.catalog_id) }}" class="inline-form" data-confirm="Delete this book? This cannot be undone.">
+                            <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="7" class="empty">No books found.</td></tr>
+                {% endfor %}
+            </table></div></div>
+        </div>
+    </div>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

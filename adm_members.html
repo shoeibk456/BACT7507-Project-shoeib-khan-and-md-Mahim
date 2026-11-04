@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<!-- adm_members.html - admin student list with search, edit and delete (Team member responsible: Mahim - HTML/CSS) -->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manage Students - LibConnect</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="app">
+    <!-- Admin sidebar -->
+    <div class="sidebar sidebar-admin">
+        <div class="sidebar-logo">&#128218; LibConnect Admin</div>
+        <nav>
+            <a href="{{ url_for('adm_home') }}" class="{{ 'active' if active == 'home' }}">Dashboard</a>
+            <a href="{{ url_for('adm_catalog') }}" class="{{ 'active' if active == 'catalog' }}">Books</a>
+            <a href="{{ url_for('adm_members') }}" class="{{ 'active' if active == 'members' }}">Students</a>
+            <a href="{{ url_for('adm_subjects') }}" class="{{ 'active' if active == 'subjects' }}">Categories</a>
+            <a href="{{ url_for('adm_loan_records') }}" class="{{ 'active' if active == 'loans' }}">Borrow Records</a>
+        </nav>
+        <a href="{{ url_for('logout') }}" class="logout">Logout</a>
+    </div>
+        <div class="main">
+            {% with messages = get_flashed_messages(with_categories=true) %}{% for category, message in messages %}<div class="flash flash-{{ category }}">{{ message }}</div>{% endfor %}{% endwith %}
+
+            <div class="topbar"><h1>Manage Students</h1><a href="{{ url_for('adm_member_form') }}" class="btn btn-purple">+ Add Student</a></div>
+            <form method="GET" action="{{ url_for('adm_members') }}" class="search-row">
+                <input type="text" name="q" value="{{ term }}" placeholder="Search by name, email or student ID...">
+                <button type="submit" class="btn btn-primary">Search</button>
+                <a href="{{ url_for('adm_members') }}" class="btn btn-outline">Clear</a>
+            </form>
+            <div class="card"><div class="table-wrap"><table>
+                <tr><th>Student ID</th><th>Name</th><th>Email</th><th>Course</th><th>Books out</th><th>Status</th><th>Action</th></tr>
+                {% for m in members %}
+                <tr>
+                    <td>{{ m.student_id }}</td><td>{{ m.full_name }}</td><td>{{ m.email }}</td><td>{{ m.course or '-' }}</td>
+                    <td>{{ m.open_loans }}</td>
+                    <td>{% if m.status == 'Active' %}<span class="badge badge-green">Active</span>{% else %}<span class="badge badge-red">Inactive</span>{% endif %}</td>
+                    <td style="white-space:nowrap;">
+                        <a href="{{ url_for('adm_member_form', account_id=m.account_id) }}" class="btn btn-outline btn-sm">Edit</a>
+                        <form method="POST" action="{{ url_for('adm_member_delete', account_id=m.account_id) }}" class="inline-form" data-confirm="Delete this student and their borrowing history? This cannot be undone.">
+                            <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="7" class="empty">No students found.</td></tr>
+                {% endfor %}
+            </table></div></div>
+        </div>
+    </div>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

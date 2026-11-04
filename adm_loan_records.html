@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<!-- adm_loan_records.html - read-only list of every loan with status filter and search (Team member responsible: Mahim - HTML/CSS) -->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Borrow Records - LibConnect</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="app">
+    <!-- Admin sidebar -->
+    <div class="sidebar sidebar-admin">
+        <div class="sidebar-logo">&#128218; LibConnect Admin</div>
+        <nav>
+            <a href="{{ url_for('adm_home') }}" class="{{ 'active' if active == 'home' }}">Dashboard</a>
+            <a href="{{ url_for('adm_catalog') }}" class="{{ 'active' if active == 'catalog' }}">Books</a>
+            <a href="{{ url_for('adm_members') }}" class="{{ 'active' if active == 'members' }}">Students</a>
+            <a href="{{ url_for('adm_subjects') }}" class="{{ 'active' if active == 'subjects' }}">Categories</a>
+            <a href="{{ url_for('adm_loan_records') }}" class="{{ 'active' if active == 'loans' }}">Borrow Records</a>
+        </nav>
+        <a href="{{ url_for('logout') }}" class="logout">Logout</a>
+    </div>
+        <div class="main">
+            {% with messages = get_flashed_messages(with_categories=true) %}{% for category, message in messages %}<div class="flash flash-{{ category }}">{{ message }}</div>{% endfor %}{% endwith %}
+
+            <div class="topbar"><h1>Borrow Records</h1></div>
+            <form method="GET" action="{{ url_for('adm_loan_records') }}" class="search-row">
+                <select name="status">
+                    <option value="">All Status</option>
+                    {% for s in ['Borrowed', 'Returned', 'Overdue'] %}<option value="{{ s }}" {{ 'selected' if s == status }}>{{ s }}</option>{% endfor %}
+                </select>
+                <input type="text" name="q" value="{{ term }}" placeholder="Search by student, student ID or book...">
+                <button type="submit" class="btn btn-primary">Search</button>
+                <a href="{{ url_for('adm_loan_records') }}" class="btn btn-outline">Clear</a>
+            </form>
+            <div class="card"><div class="table-wrap"><table>
+                <tr><th>ID</th><th>Student</th><th>Book</th><th>Borrowed</th><th>Due</th><th>Returned</th><th>Status</th></tr>
+                {% for l in loans %}
+                <tr>
+                    <td>{{ l.loan_id }}</td><td>{{ l.student_name }}<br><span class="hint">{{ l.student_id }}</span></td><td>{{ l.book_title }}</td>
+                    <td>{{ l.borrow_date|dmy }}</td><td>{{ l.due_date|dmy }}</td><td>{{ l.return_date|dmy }}</td>
+                    <td>{% if l.loan_status == 'Borrowed' %}<span class="badge badge-blue">Borrowed</span>{% elif l.loan_status == 'Overdue' %}<span class="badge badge-red">Overdue</span>{% else %}<span class="badge badge-green">Returned</span>{% endif %}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="7" class="empty">No borrow records found.</td></tr>
+                {% endfor %}
+            </table></div></div>
+        </div>
+    </div>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
