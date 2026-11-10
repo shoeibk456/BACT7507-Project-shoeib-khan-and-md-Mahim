@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<!-- stu_ebook_search.html - eBook search using the Gutendex and Google Books APIs (Team member responsible: Mahim - HTML/CSS) -->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Search eBooks - LibConnect</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="app">
+    <!-- Student sidebar: the highlighted link is chosen by the 'active' value sent from app.py -->
+    <div class="sidebar sidebar-student">
+        <div class="sidebar-logo">&#128218; LibConnect</div>
+        <nav>
+            <a href="{{ url_for('stu_home') }}" class="{{ 'active' if active == 'home' }}">Dashboard</a>
+            <a href="{{ url_for('stu_catalog') }}" class="{{ 'active' if active == 'catalog' }}">Browse Books</a>
+            <a href="{{ url_for('stu_my_loans') }}" class="{{ 'active' if active == 'loans' }}">My Borrowed Books</a>
+            <a href="{{ url_for('stu_ebook_search') }}" class="{{ 'active' if active == 'ebooks' }}">Search eBooks</a>
+            <a href="{{ url_for('stu_account') }}" class="{{ 'active' if active == 'account' }}">My Profile</a>
+        </nav>
+        <a href="{{ url_for('logout') }}" class="logout">Logout</a>
+    </div>
+        <div class="main">
+            {% with messages = get_flashed_messages(with_categories=true) %}{% for category, message in messages %}<div class="flash flash-{{ category }}">{{ message }}</div>{% endfor %}{% endwith %}
+
+            <div class="topbar"><h1>Search eBooks</h1></div>
+            <p class="hint" style="margin-bottom:16px; font-size:14px;">Search free public-domain eBooks from Project Gutenberg (Gutendex API) or find books and previews on Google Books. Results open on an external website.</p>
+
+            <!-- the 'source' dropdown tells app.py which service to search -->
+            <form method="GET" action="{{ url_for('stu_ebook_search') }}" class="search-row">
+                <input type="text" name="q" value="{{ term }}" placeholder="Search by title or author, e.g. Sherlock Holmes">
+                <select name="source">
+                    <option value="gutendex" {% if source == 'gutendex' %}selected{% endif %}>Project Gutenberg (free full books)</option>
+                    <option value="google" {% if source == 'google' %}selected{% endif %}>Google Books</option>
+                </select>
+                <button type="submit" class="btn btn-primary">Search</button>
+            </form>
+            {% if error %}<div class="flash flash-error">{{ error }}</div>{% endif %}
+            <div class="card">
+                {% for e in results %}
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; padding:12px 0; border-bottom:1px solid #f0f0f0;">
+                    <div class="cell-book">
+                        {% if e.cover %}<img class="thumb" src="{{ e.cover }}" alt="">{% endif %}
+                        <div><strong>{{ e.title }}</strong><br><span class="hint">{{ e.author }}{% if e.year %} &middot; {{ e.year }}{% endif %}</span></div>
+                    </div>
+                    {% if e.source == 'google' %}
+                        {% if e.link %}
+                            <a class="btn btn-success btn-sm" href="{{ e.link }}" target="_blank" rel="noopener">Open on Google Books</a>
+                        {% endif %}
+                    {% else %}
+                        <a class="btn btn-success btn-sm" href="{{ url_for('stu_ebook_view', ebook_id=e.ebook_id) }}">View eBook</a>
+                    {% endif %}
+                </div>
+                {% endfor %}
+                {% if term and not results and not error %}
+                <p class="empty">No eBooks found for "{{ term }}". Try a different title or author.</p>
+                {% elif not term %}
+                <p class="empty">Type a title or author above to search for eBooks.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

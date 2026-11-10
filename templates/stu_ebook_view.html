@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<!-- stu_ebook_view.html - details of one Gutendex eBook with link to read it (Team member responsible: Mahim - HTML/CSS) -->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>eBook Details - LibConnect</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="app">
+    <!-- Student sidebar: the highlighted link is chosen by the 'active' value sent from app.py -->
+    <div class="sidebar sidebar-student">
+        <div class="sidebar-logo">&#128218; LibConnect</div>
+        <nav>
+            <a href="{{ url_for('stu_home') }}" class="{{ 'active' if active == 'home' }}">Dashboard</a>
+            <a href="{{ url_for('stu_catalog') }}" class="{{ 'active' if active == 'catalog' }}">Browse Books</a>
+            <a href="{{ url_for('stu_my_loans') }}" class="{{ 'active' if active == 'loans' }}">My Borrowed Books</a>
+            <a href="{{ url_for('stu_ebook_search') }}" class="{{ 'active' if active == 'ebooks' }}">Search eBooks</a>
+            <a href="{{ url_for('stu_account') }}" class="{{ 'active' if active == 'account' }}">My Profile</a>
+        </nav>
+        <a href="{{ url_for('logout') }}" class="logout">Logout</a>
+    </div>
+        <div class="main">
+            {% with messages = get_flashed_messages(with_categories=true) %}{% for category, message in messages %}<div class="flash flash-{{ category }}">{{ message }}</div>{% endfor %}{% endwith %}
+
+            <a href="javascript:history.back()" class="hint">&larr; Back to results</a>
+            {% if error %}
+            <div class="flash flash-error" style="margin-top:14px;">{{ error }}</div>
+            {% else %}
+            <div class="card detail-grid" style="margin-top:14px;">
+                <div>
+                    {% if ebook.cover %}<img class="cover-img cover-large" src="{{ ebook.cover }}" alt="Cover of {{ ebook.title }}">
+                    {% else %}<div class="book-cover cover-large" style="font-size:20px;">{{ ebook.title }}</div>{% endif %}
+                </div>
+                <div>
+                    <h2>{{ ebook.title }}</h2>
+                    <p class="hint" style="margin-bottom:16px; font-size:14px;">by {{ ebook.author }}</p>
+                    <table class="meta">
+                        <tr><td>Language</td><td>{{ ebook.language }}</td></tr>
+                        <tr><td>Downloads</td><td>{{ ebook.download_count }}</td></tr>
+                        <tr><td>Subjects</td><td>{% for s in ebook.subjects %}{{ s }}{% if not loop.last %}; {% endif %}{% else %}-{% endfor %}</td></tr>
+                        <tr><td>Source</td><td>Project Gutenberg (via Gutendex)</td></tr>
+                    </table>
+                    <a href="{{ ebook.link }}" target="_blank" rel="noopener" class="btn btn-primary" style="margin-top:20px;">Read eBook (opens in a new tab)</a>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

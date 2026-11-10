@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<!-- stu_catalog.html - search and filter the library catalogue (Team member responsible: Mahim - HTML/CSS) -->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Browse Books - LibConnect</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="app">
+    <!-- Student sidebar: the highlighted link is chosen by the 'active' value sent from app.py -->
+    <div class="sidebar sidebar-student">
+        <div class="sidebar-logo">&#128218; LibConnect</div>
+        <nav>
+            <a href="{{ url_for('stu_home') }}" class="{{ 'active' if active == 'home' }}">Dashboard</a>
+            <a href="{{ url_for('stu_catalog') }}" class="{{ 'active' if active == 'catalog' }}">Browse Books</a>
+            <a href="{{ url_for('stu_my_loans') }}" class="{{ 'active' if active == 'loans' }}">My Borrowed Books</a>
+            <a href="{{ url_for('stu_ebook_search') }}" class="{{ 'active' if active == 'ebooks' }}">Search eBooks</a>
+            <a href="{{ url_for('stu_account') }}" class="{{ 'active' if active == 'account' }}">My Profile</a>
+        </nav>
+        <a href="{{ url_for('logout') }}" class="logout">Logout</a>
+    </div>
+        <div class="main">
+            {% with messages = get_flashed_messages(with_categories=true) %}{% for category, message in messages %}<div class="flash flash-{{ category }}">{{ message }}</div>{% endfor %}{% endwith %}
+
+            <div class="topbar"><h1>Browse Books</h1></div>
+            <!-- GET form: the search words are added to the URL (?q=...&subject=...) and read by stu_catalog() -->
+            <form method="GET" action="{{ url_for('stu_catalog') }}" class="search-row">
+                <input type="text" name="q" value="{{ term }}" placeholder="Search by title, author or ISBN...">
+                <select name="subject">
+                    <option value="">All Categories</option>
+                    {% for s in subjects %}<option value="{{ s.subject_name }}" {{ 'selected' if s.subject_name == subject }}>{{ s.subject_name }}</option>{% endfor %}
+                </select>
+                <button type="submit" class="btn btn-primary">Search</button>
+                <a href="{{ url_for('stu_catalog') }}" class="btn btn-outline">Clear</a>
+            </form>
+            <div class="card"><div class="table-wrap"><table>
+                <tr><th>Book</th><th>Author</th><th>Category</th><th>Copies</th><th>eBook</th><th>Action</th></tr>
+                {% for b in books %}
+                <tr>
+                    <td><div class="cell-book">{% if b.cover_image %}<img class="thumb" src="{{ url_for('static', filename='uploads/covers/' + b.cover_image) }}" alt="">{% endif %}{{ b.title }}</div></td>
+                    <td>{{ b.author }}</td>
+                    <td>{{ b.subject_name or '-' }}</td>
+                    <td>{% if b.available_copies > 0 %}<span class="badge badge-green">{{ b.available_copies }} of {{ b.total_copies }} available</span>
+                        {% else %}<span class="badge badge-red">None available</span>{% endif %}</td>
+                    <td>{% if b.ebook_available %}<span class="badge badge-blue">Yes</span>{% else %}<span class="badge badge-grey">No</span>{% endif %}</td>
+                    <td><a href="{{ url_for('stu_book_view', catalog_id=b.catalog_id) }}" class="btn btn-primary btn-sm">View</a></td>
+                </tr>
+                {% else %}
+                <tr><td colspan="6" class="empty">No books matched your search.</td></tr>
+                {% endfor %}
+            </table></div></div>
+        </div>
+    </div>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

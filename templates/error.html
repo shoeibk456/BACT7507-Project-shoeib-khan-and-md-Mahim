@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<!-- error.html - friendly error page (database problem, page not found, file too large) -->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ title }} - LibConnect</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="login-wrapper">
+        <div class="login-box">
+            <h2>{{ title }}</h2>
+            <p style="margin-top:12px;">{{ message }}</p>
+            {% if detail %}<p style="font-size:12px; color:#c0392b;">Technical detail: {{ detail }}</p>{% endif %}
+            <a href="{{ url_for('login_page') }}" class="btn btn-primary" style="margin-top:12px;">Back to login</a>
+        </div>
+    </div>
+</body>
+</html>

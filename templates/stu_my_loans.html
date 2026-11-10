@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<!-- stu_my_loans.html - current loans with Return button, and borrowing history (Team member responsible: Mahim - HTML/CSS) -->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Borrowed Books - LibConnect</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="app">
+    <!-- Student sidebar: the highlighted link is chosen by the 'active' value sent from app.py -->
+    <div class="sidebar sidebar-student">
+        <div class="sidebar-logo">&#128218; LibConnect</div>
+        <nav>
+            <a href="{{ url_for('stu_home') }}" class="{{ 'active' if active == 'home' }}">Dashboard</a>
+            <a href="{{ url_for('stu_catalog') }}" class="{{ 'active' if active == 'catalog' }}">Browse Books</a>
+            <a href="{{ url_for('stu_my_loans') }}" class="{{ 'active' if active == 'loans' }}">My Borrowed Books</a>
+            <a href="{{ url_for('stu_ebook_search') }}" class="{{ 'active' if active == 'ebooks' }}">Search eBooks</a>
+            <a href="{{ url_for('stu_account') }}" class="{{ 'active' if active == 'account' }}">My Profile</a>
+        </nav>
+        <a href="{{ url_for('logout') }}" class="logout">Logout</a>
+    </div>
+        <div class="main">
+            {% with messages = get_flashed_messages(with_categories=true) %}{% for category, message in messages %}<div class="flash flash-{{ category }}">{{ message }}</div>{% endfor %}{% endwith %}
+
+            <div class="topbar"><h1>My Borrowed Books</h1></div>
+            <div class="card">
+                <h3>Currently borrowed</h3>
+                <div class="table-wrap"><table>
+                    <tr><th>Book</th><th>Borrowed</th><th>Due Date</th><th>Status</th><th>Action</th></tr>
+                    {% for loan in current %}
+                    <tr>
+                        <td>{{ loan.title }}<br><span class="hint">{{ loan.author }}</span></td>
+                        <td>{{ loan.borrow_date|dmy }}</td>
+                        <td>{{ loan.due_date|dmy }}{% if loan.loan_status == 'Overdue' %}<br><span class="hint" style="color:#e6483a;">{{ (today - loan.due_date).days }} day(s) late</span>{% endif %}</td>
+                        <td>{% if loan.loan_status == 'Borrowed' %}<span class="badge badge-blue">Borrowed</span>{% elif loan.loan_status == 'Overdue' %}<span class="badge badge-red">Overdue</span>{% else %}<span class="badge badge-green">Returned</span>{% endif %}</td>
+                        <td>
+                            <form method="POST" action="{{ url_for('stu_return', loan_id=loan.loan_id) }}" class="inline-form" data-confirm="Return this book now?">
+                                <button type="submit" class="btn btn-outline btn-sm">Return</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="5" class="empty">You have no borrowed books. <a href="{{ url_for('stu_catalog') }}" style="color:#1a5fd0;">Browse the catalogue</a></td></tr>
+                    {% endfor %}
+                </table></div>
+            </div>
+                        <div class="card">
+                <h3>Borrowing history</h3>
+                <div class="table-wrap"><table>
+                    <tr><th>Book</th><th>Borrowed</th><th>Returned</th><th>Status</th></tr>
+                    {% for loan in history %}
+                    <tr><td>{{ loan.title }}</td><td>{{ loan.borrow_date|dmy }}</td><td>{{ loan.return_date|dmy }}</td><td><span class="badge badge-green">Returned</span></td></tr>
+                    {% else %}
+                    <tr><td colspan="4" class="empty">No returned books yet.</td></tr>
+                    {% endfor %}
+                </table></div>
+            </div>
+        </div>
+    </div>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

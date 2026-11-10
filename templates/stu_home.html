@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<!-- stu_home.html - student dashboard: stat cards, current loans, new books (Team member responsible: Mahim - HTML/CSS) -->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Dashboard - LibConnect</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="app">
+    <!-- Student sidebar: the highlighted link is chosen by the 'active' value sent from app.py -->
+    <div class="sidebar sidebar-student">
+        <div class="sidebar-logo">&#128218; LibConnect</div>
+        <nav>
+            <a href="{{ url_for('stu_home') }}" class="{{ 'active' if active == 'home' }}">Dashboard</a>
+            <a href="{{ url_for('stu_catalog') }}" class="{{ 'active' if active == 'catalog' }}">Browse Books</a>
+            <a href="{{ url_for('stu_my_loans') }}" class="{{ 'active' if active == 'loans' }}">My Borrowed Books</a>
+            <a href="{{ url_for('stu_ebook_search') }}" class="{{ 'active' if active == 'ebooks' }}">Search eBooks</a>
+            <a href="{{ url_for('stu_account') }}" class="{{ 'active' if active == 'account' }}">My Profile</a>
+        </nav>
+        <a href="{{ url_for('logout') }}" class="logout">Logout</a>
+    </div>
+        <div class="main">
+            {% with messages = get_flashed_messages(with_categories=true) %}{% for category, message in messages %}<div class="flash flash-{{ category }}">{{ message }}</div>{% endfor %}{% endwith %}
+
+            <div class="topbar">
+                <h1>Welcome, {{ session['full_name'] }} &#128075;</h1>
+                <div class="user-pill"><div class="avatar">{{ session['full_name'][0] }}</div>{{ session['full_name'] }}</div>
+            </div>
+            <div class="stat-cards">
+                <div class="stat-card"><div class="value">{{ stats.borrowed }}</div><div class="label">Books Borrowed</div></div>
+                <div class="stat-card"><div class="value">{{ stats.due_soon }}</div><div class="label">Due Within 3 Days</div></div>
+                <div class="stat-card {{ 'warn' if stats.overdue }}"><div class="value">{{ stats.overdue }}</div><div class="label">Overdue</div></div>
+                <div class="stat-card"><div class="value">{{ stats.available }}</div><div class="label">Copies Available</div></div>
+            </div>
+            <div class="two-col-wide">
+                <div class="card">
+                    <h3>My Current Books</h3>
+                    <div class="table-wrap"><table>
+                        <tr><th>Book</th><th>Due Date</th><th>Status</th></tr>
+                        {% for loan in current_loans %}
+                        <tr>
+                            <td><a href="{{ url_for('stu_book_view', catalog_id=loan.catalog_id) }}">{{ loan.title }}</a></td>
+                            <td>{{ loan.due_date|dmy }}</td>
+                            <td>{% if loan.loan_status == 'Borrowed' %}<span class="badge badge-blue">Borrowed</span>{% elif loan.loan_status == 'Overdue' %}<span class="badge badge-red">Overdue</span>{% else %}<span class="badge badge-green">Returned</span>{% endif %}</td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="3" class="empty">You have no borrowed books right now.</td></tr>
+                        {% endfor %}
+                    </table></div>
+                </div>
+                <div class="card">
+                    <h3>Recently Added</h3>
+                    {% for b in recent_books %}
+                    <a href="{{ url_for('stu_book_view', catalog_id=b.catalog_id) }}" style="display:block; margin-bottom:10px;">
+                        <div class="cell-book">{% if b.cover_image %}<img class="thumb" src="{{ url_for('static', filename='uploads/covers/' + b.cover_image) }}" alt="">{% endif %}<div><strong style="font-size:13px;">{{ b.title }}</strong><br><span class="hint">{{ b.author }}</span></div></div>
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

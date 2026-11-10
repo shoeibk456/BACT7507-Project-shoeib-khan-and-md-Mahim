@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<!-- stu_book_view.html - one book: details, borrow button, eBook link (Team member responsible: Mahim - HTML/CSS) -->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Book Details - LibConnect</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="app">
+    <!-- Student sidebar: the highlighted link is chosen by the 'active' value sent from app.py -->
+    <div class="sidebar sidebar-student">
+        <div class="sidebar-logo">&#128218; LibConnect</div>
+        <nav>
+            <a href="{{ url_for('stu_home') }}" class="{{ 'active' if active == 'home' }}">Dashboard</a>
+            <a href="{{ url_for('stu_catalog') }}" class="{{ 'active' if active == 'catalog' }}">Browse Books</a>
+            <a href="{{ url_for('stu_my_loans') }}" class="{{ 'active' if active == 'loans' }}">My Borrowed Books</a>
+            <a href="{{ url_for('stu_ebook_search') }}" class="{{ 'active' if active == 'ebooks' }}">Search eBooks</a>
+            <a href="{{ url_for('stu_account') }}" class="{{ 'active' if active == 'account' }}">My Profile</a>
+        </nav>
+        <a href="{{ url_for('logout') }}" class="logout">Logout</a>
+    </div>
+        <div class="main">
+            {% with messages = get_flashed_messages(with_categories=true) %}{% for category, message in messages %}<div class="flash flash-{{ category }}">{{ message }}</div>{% endfor %}{% endwith %}
+
+            <a href="{{ url_for('stu_catalog') }}" class="hint">&larr; Back to books</a>
+            <div class="card detail-grid" style="margin-top:14px;">
+                <div>
+                    {% if book.cover_image %}
+                    <img class="cover-img cover-large" src="{{ url_for('static', filename='uploads/covers/' + book.cover_image) }}" alt="Cover of {{ book.title }}">
+                    {% else %}<div class="book-cover cover-large" style="font-size:22px;">{{ book.title }}</div>{% endif %}
+                </div>
+                <div>
+                    <h2>{{ book.title }}</h2>
+                    <p class="hint" style="margin-bottom:16px; font-size:14px;">by {{ book.author }}</p>
+                    <table class="meta">
+                        <tr><td>Category</td><td>{{ book.subject_name or '-' }}</td></tr>
+                        <tr><td>ISBN</td><td>{{ book.isbn or '-' }}</td></tr>
+                        <tr><td>Publisher</td><td>{{ book.publisher or '-' }}</td></tr>
+                        <tr><td>Year</td><td>{{ book.publish_year or '-' }}</td></tr>
+                        <tr><td>Copies available</td><td>{{ book.available_copies }} of {{ book.total_copies }}</td></tr>
+                        <tr><td>eBook</td><td>{{ 'Available online' if book.ebook_available else 'Not available' }}</td></tr>
+                    </table>
+                    <div style="margin-top:20px; display:flex; gap:12px; flex-wrap:wrap;">
+                        {% if already %}
+                            <span class="badge badge-orange" style="padding:10px 14px;">You have already borrowed this book</span>
+                            <a href="{{ url_for('stu_my_loans') }}" class="btn btn-outline">Go to My Borrowed Books</a>
+                        {% elif book.available_copies > 0 %}
+                            <!-- POST form: sends the borrow request to stu_borrow() in app.py -->
+                            <form method="POST" action="{{ url_for('stu_borrow', catalog_id=book.catalog_id) }}">
+                                <button type="submit" class="btn btn-primary">Borrow Book ({{ loan_days }} days)</button>
+                            </form>
+                        {% else %}
+                            <button class="btn btn-outline" disabled>No copies available</button>
+                        {% endif %}
+                        {% if book.ebook_available and book.ebook_link %}
+                            <a href="{{ book.ebook_link }}" target="_blank" rel="noopener" class="btn btn-success">Read eBook</a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

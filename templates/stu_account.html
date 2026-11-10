@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<!-- stu_account.html - student profile: view details, edit name/phone, change password (Team member responsible: Mahim - HTML/CSS) -->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Profile - LibConnect</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="app">
+    <!-- Student sidebar: the highlighted link is chosen by the 'active' value sent from app.py -->
+    <div class="sidebar sidebar-student">
+        <div class="sidebar-logo">&#128218; LibConnect</div>
+        <nav>
+            <a href="{{ url_for('stu_home') }}" class="{{ 'active' if active == 'home' }}">Dashboard</a>
+            <a href="{{ url_for('stu_catalog') }}" class="{{ 'active' if active == 'catalog' }}">Browse Books</a>
+            <a href="{{ url_for('stu_my_loans') }}" class="{{ 'active' if active == 'loans' }}">My Borrowed Books</a>
+            <a href="{{ url_for('stu_ebook_search') }}" class="{{ 'active' if active == 'ebooks' }}">Search eBooks</a>
+            <a href="{{ url_for('stu_account') }}" class="{{ 'active' if active == 'account' }}">My Profile</a>
+        </nav>
+        <a href="{{ url_for('logout') }}" class="logout">Logout</a>
+    </div>
+        <div class="main">
+            {% with messages = get_flashed_messages(with_categories=true) %}{% for category, message in messages %}<div class="flash flash-{{ category }}">{{ message }}</div>{% endfor %}{% endwith %}
+
+            <div class="topbar"><h1>My Profile</h1></div>
+            <div class="two-col">
+                <div class="card">
+                    <h3>My details</h3>
+                    <table class="meta">
+                        <tr><td>Student ID</td><td>{{ account.student_id }}</td></tr>
+                        <tr><td>Email</td><td>{{ account.email }}</td></tr>
+                        <tr><td>Course</td><td>{{ account.course or '-' }}</td></tr>
+                        <tr><td>Member since</td><td>{{ account.joined_on|dmy }}</td></tr>
+                    </table>
+                    <h3 style="margin-top:24px;">Edit profile</h3>
+                    <form method="POST" action="{{ url_for('stu_account') }}">
+                        <div class="form-group"><label>Full name</label><input type="text" name="full_name" value="{{ account.full_name }}" required></div>
+                        <div class="form-group"><label>Phone</label><input type="text" name="phone" value="{{ account.phone or '' }}"></div>
+                        <button type="submit" class="btn btn-primary">Save changes</button>
+                    </form>
+                </div>
+                <div class="card">
+                    <h3>Change password</h3>
+                    <form method="POST" action="{{ url_for('stu_change_password') }}">
+                        <div class="form-group"><label>Current password</label><input type="password" name="current_password" required></div>
+                        <div class="form-group"><label>New password (at least 6 characters)</label><input type="password" name="new_password" required></div>
+                        <div class="form-group"><label>Confirm new password</label><input type="password" name="confirm_password" required></div>
+                        <button type="submit" class="btn btn-purple">Change password</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

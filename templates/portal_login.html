@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<!-- portal_login.html - login page for both students and admin (Team member responsible: Shoeib - login) -->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - LibConnect</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="login-wrapper">
+        <div class="login-box">
+            <h2>&#128218; LibConnect</h2>
+            <p>Welcome back! Log in to your account</p>
+            {% with messages = get_flashed_messages(with_categories=true) %}{% for category, message in messages %}<div class="flash flash-{{ category }}">{{ message }}</div>{% endfor %}{% endwith %}
+            <!-- The form is sent (POST) to login_page() in app.py, which checks the hashed password -->
+            <form method="POST" action="{{ url_for('login_page') }}">
+                <div class="form-group">
+                    <label for="identifier">Email or Student ID</label>
+                    <input type="text" id="identifier" name="identifier" placeholder="e.g. ali.khan@email.com or STU001" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password" placeholder="Enter your password" required>
+                </div>
+                <button type="submit" class="btn btn-primary">Login</button>
+            </form>
+        </div>
+    </div>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
