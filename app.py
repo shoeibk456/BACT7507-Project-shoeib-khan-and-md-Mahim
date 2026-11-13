@@ -25,7 +25,7 @@ LOAN_DAYS = 14                      # a book can be kept for 14 days
 UPLOAD_FOLDER = os.path.join(app.root_path, "static", "uploads", "covers")   # where cover pictures are saved
 ALLOWED_IMAGE_TYPES = {"png", "jpg", "jpeg", "gif", "webp"}                  # picture types we accept
 GOOGLE_BOOKS_URL = "https://www.googleapis.com/books/v1/volumes"             # Google Books address
-GOOGLE_API_KEY = "AIzaSyAru_AEBdfDaDK2oI5bqyzNr_C-_uwB-Bg"  #secret api key                 
+GOOGLE_API_KEY = ""  #secret api key                 
 EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")   # shape of a real email
 PHONE_PATTERN = re.compile(r"^[0-9 +()\-]{6,20}$")          
 
