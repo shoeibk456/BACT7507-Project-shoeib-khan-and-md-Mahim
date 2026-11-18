@@ -202,3 +202,238 @@ def logout():
     session.clear()                      # forget the user
     flash("You have been logged out.", "success")
     return redirect(url_for("login_page"))
+
+
+
+
+#----------------------------------------------------
+# Mahim task part 2
+#----------------------------------------------------
+
+
+
+# ============================================================
+# PART 2: STUDENT PAGES
+# ============================================================
+
+@app.route("/student/home")
+@login_required("student")          
+def stu_home():
+    refresh_overdue()               
+    me = session["account_id"]      
+    today = date.today()
+
+    
+
+    # books this student has now (still Borrowed or already Overdue)
+    row = fetch_one("SELECT COUNT(*) AS n FROM loan_records WHERE account_id = %s "
+                    "AND loan_status IN ('Borrowed','Overdue')", (me,))
+    borrowed = row["n"]
+
+    # books that are due in the next 3 days
+    three_days_later = today + timedelta(days=3)
+    row = fetch_one("SELECT COUNT(*) AS n FROM loan_records WHERE account_id = %s "
+                    "AND loan_status = 'Borrowed' AND due_date BETWEEN %s AND %s",
+                    (me, today, three_days_later))
+    due_soon = row["n"]
+
+    # books that are already late
+    row = fetch_one("SELECT COUNT(*) AS n FROM loan_records WHERE account_id = %s "
+                    "AND loan_status = 'Overdue'", (me,))
+    overdue = row["n"]
+
+    # total copies on the shelf in the whole library 
+    row = fetch_one("SELECT COALESCE(SUM(available_copies), 0) AS n FROM book_catalog")
+    available = int(row["n"])
+
+    
+    stats = {"borrowed": borrowed, "due_soon": due_soon,
+             "overdue": overdue, "available": available}
+
+    # the 5 loans that are due first (shown in the "Current loans" box)
+    current_loans = fetch_all("""
+        SELECT l.due_date, l.loan_status, b.title, b.catalog_id
+        FROM loan_records l
+        JOIN book_catalog b ON l.catalog_id = b.catalog_id
+        WHERE l.account_id = %s AND l.loan_status IN ('Borrowed','Overdue')
+        ORDER BY l.due_date
+        LIMIT 5""", (me,))
+
+    # the 4 newest books in the library (shown in "Recently added")
+    recent_books = fetch_all("SELECT catalog_id, title, author, cover_image FROM book_catalog "
+                             "ORDER BY added_on DESC, catalog_id DESC LIMIT 4")
+
+    # send everything to the HTML page ('active' highlights the sidebar link)
+    return render_template("stu_home.html", active="home", stats=stats,
+                           current_loans=current_loans, recent_books=recent_books)
+
+
+@app.route("/student/catalog")
+@login_required("student")
+def stu_catalog():
+    # read what the student typed in the search box and chose in the category list
+    term = request.args.get("q", "").strip()
+    subject = request.args.get("subject", "").strip()
+
+    books = search_books(term, subject)     # helper function from Part 1
+    subjects = fetch_all("SELECT subject_name FROM subjects ORDER BY subject_name")
+
+    return render_template("stu_catalog.html", active="catalog", books=books,
+                           subjects=subjects, term=term, subject=subject)
+
+
+@app.route("/student/catalog/<int:catalog_id>")
+@login_required("student")
+def stu_book_view(catalog_id):
+    
+
+    # get the book and its category name
+    book = fetch_one("""
+        SELECT b.*, s.subject_name
+        FROM book_catalog b
+        LEFT JOIN subjects s ON b.subject_id = s.subject_id
+        WHERE b.catalog_id = %s""", (catalog_id,))
+
+    # if there is no such book, go back to the catalogue
+    if book is None:
+        flash("That book does not exist.", "error")
+        return redirect(url_for("stu_catalog"))
+
+    # does this student already have this book? (so we can hide the Borrow button)
+    row = fetch_one("SELECT COUNT(*) AS n FROM loan_records WHERE account_id = %s "
+                    "AND catalog_id = %s AND loan_status IN ('Borrowed','Overdue')",
+                    (session["account_id"], catalog_id))
+    already = row["n"] > 0              # True or False
+
+    return render_template("stu_book_view.html", active="catalog", book=book,
+                           already=already, loan_days=LOAN_DAYS)
+
+
+# ============================================================
+# FEATURE 4: BORROW AND RETURN   (Shoeib)
+# ============================================================
+
+@app.route("/student/borrow/<int:catalog_id>", methods=["POST"])
+@login_required("student")
+def stu_borrow(catalog_id):
+    # Borrow rules:
+    #   1) the book must exist
+    #   2) the student must not already have this book
+    #   3) at least 1 copy must be free
+    # All the database steps run as ONE transaction: either all of them
+    # happen or none of them do.
+
+    refresh_overdue()
+    conn = get_db_connection()                  # open a connection to MySQL
+    cursor = conn.cursor(dictionary=True)       # dictionary=True lets us use row["title"]
+
+    try:
+        # FOR UPDATE locks this book's row until we commit, so two students
+        # cannot take the last copy at the same moment
+        cursor.execute("SELECT * FROM book_catalog WHERE catalog_id = %s FOR UPDATE",
+                       (catalog_id,))
+        book = cursor.fetchone()
+
+        # does this student already have this book?
+        cursor.execute("SELECT COUNT(*) AS n FROM loan_records WHERE account_id = %s "
+                       "AND catalog_id = %s AND loan_status IN ('Borrowed','Overdue')",
+                       (session["account_id"], catalog_id))
+        already = cursor.fetchone()["n"] > 0
+
+        # check the rules one by one
+        if book is None:
+            flash("That book does not exist.", "error")
+        elif already:
+            flash("You have already borrowed this book. Return it before borrowing it again.", "error")
+        elif book["available_copies"] <= 0:
+            flash("No copies are currently available.", "error")
+        else:
+            # all rules passed, so make the loan
+            today = date.today()
+            due_date = today + timedelta(days=LOAN_DAYS)
+
+            # step 1: add a new row to loan_records
+            cursor.execute("INSERT INTO loan_records "
+                           "(account_id, catalog_id, borrow_date, due_date, loan_status) "
+                           "VALUES (%s, %s, %s, %s, 'Borrowed')",
+                           (session["account_id"], catalog_id, today, due_date))
+
+            # step 2: one less copy is available now
+            cursor.execute("UPDATE book_catalog SET available_copies = available_copies - 1 "
+                           "WHERE catalog_id = %s", (catalog_id,))
+
+            flash("You borrowed '" + book["title"] + "'. It is due on "
+                  + due_date.strftime("%d/%m/%Y") + ".", "success")
+
+        conn.commit()               # save all the changes together
+
+    except Exception:
+        conn.rollback()             # something went wrong: undo everything
+        raise                       # show the error (our error handler catches it)
+    finally:
+        cursor.close()              # always close, even if there was an error
+        conn.close()
+
+    return redirect(url_for("stu_book_view", catalog_id=catalog_id))
+
+
+@app.route("/student/loans")
+@login_required("student")
+def stu_my_loans():
+    refresh_overdue()
+
+    # students only see the books they still have.
+    current = fetch_all("""
+        SELECT l.loan_id, l.borrow_date, l.due_date, l.loan_status,
+               b.title, b.author, b.catalog_id
+        FROM loan_records l
+        JOIN book_catalog b ON l.catalog_id = b.catalog_id
+        WHERE l.account_id = %s AND l.loan_status IN ('Borrowed', 'Overdue')
+        ORDER BY l.due_date""", (session["account_id"],))
+
+    return render_template("stu_my_loans.html", active="loans", current=current,
+                           today=date.today())
+
+
+@app.route("/student/return/<int:loan_id>", methods=["POST"])
+@login_required("student")
+def stu_return(loan_id):
+    # Return a book: save the return date, mark the loan 'Returned',
+    # and give the copy back to the library. Also one transaction.
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    try:
+        # find the loan, but ONLY if it belongs to this student
+        # (so a student cannot return someone else's book)
+        cursor.execute("SELECT * FROM loan_records WHERE loan_id = %s AND account_id = %s FOR UPDATE",
+                       (loan_id, session["account_id"]))
+        loan = cursor.fetchone()
+
+        if loan is None or loan["loan_status"] == "Returned":
+            flash("That book is not currently borrowed by you.", "error")
+        else:
+            # step 1: write today's date and change the status
+            cursor.execute("UPDATE loan_records SET return_date = %s, loan_status = 'Returned' "
+                           "WHERE loan_id = %s", (date.today(), loan_id))
+
+            # step 2: one more copy is available again
+            # LEAST() picks the smaller number, so available copies can
+            # never become bigger than total copies
+            cursor.execute("UPDATE book_catalog SET available_copies = "
+                           "LEAST(total_copies, available_copies + 1) WHERE catalog_id = %s",
+                           (loan["catalog_id"],))
+
+            flash("Book returned successfully. Thank you!", "success")
+
+        conn.commit()
+
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        cursor.close()
+        conn.close()
+
+    return redirect(url_for("stu_my_loans"))
