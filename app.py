@@ -577,3 +577,285 @@ def stu_change_password():
         flash("Password changed successfully.", "success")
 
     return redirect(url_for("stu_account"))
+
+
+
+#==========================
+# ======MAHIM'S PART======
+#==========================
+
+
+# ============================================================
+# PART 4a - ADMIN: dashboard, books, categories 
+# ============================================================
+
+
+# ---------- ADMIN DASHBOARD (numbers + chart data come from SQL) ----------
+@app.route("/admin/home")
+@login_required("admin")
+def adm_home():
+    refresh_overdue()                      # first mark late books as Overdue
+
+    # Card 1 and 2: total copies and copies still on the shelf
+    totals = fetch_one("SELECT COALESCE(SUM(total_copies),0) AS total, "
+                       "COALESCE(SUM(available_copies),0) AS available FROM book_catalog")
+
+    # Card 3: loans that are open (Borrowed or Overdue)
+    borrowed = fetch_one("SELECT COUNT(*) AS n FROM loan_records "
+                         "WHERE loan_status IN ('Borrowed','Overdue')")["n"]
+
+    # Card 4: loans that are late
+    overdue = fetch_one("SELECT COUNT(*) AS n FROM loan_records WHERE loan_status = 'Overdue'")["n"]
+
+    # Card 5: number of students
+    students = fetch_one("SELECT COUNT(*) AS n FROM accounts WHERE role = 'student'")["n"]
+
+    stats = {"total_books": int(totals["total"]),
+             "available": int(totals["available"]),
+             "borrowed": borrowed,
+             "overdue": overdue,
+             "students": students}
+
+    # Bar chart: for each category, how many copies are available and how many are borrowed
+    by_subject = fetch_all("""
+        SELECT COALESCE(s.subject_name, 'Uncategorised') AS label,
+               COALESCE(SUM(b.available_copies), 0) AS available,
+               COALESCE(SUM(b.total_copies - b.available_copies), 0) AS borrowed
+        FROM book_catalog b LEFT JOIN subjects s ON b.subject_id = s.subject_id
+        GROUP BY label ORDER BY label""")
+
+    # Chart.js wants three simple lists, so we build them with a loop
+    labels = []
+    available_list = []
+    borrowed_list = []
+    for row in by_subject:
+        labels.append(row["label"])
+        available_list.append(int(row["available"]))
+        borrowed_list.append(int(row["borrowed"]))
+    chart = {"labels": labels, "available": available_list, "borrowed": borrowed_list}
+
+    # Doughnut chart: how many loans are Borrowed, Returned and Overdue
+    status_rows = fetch_all("SELECT loan_status, COUNT(*) AS n FROM loan_records GROUP BY loan_status")
+    counts = {}
+    for row in status_rows:
+        counts[row["loan_status"]] = row["n"]
+    status_chart = [counts.get("Borrowed", 0), counts.get("Returned", 0), counts.get("Overdue", 0)]
+
+    # Table: the 6 newest loans
+    recent = fetch_all("""
+        SELECT a.full_name AS student_name, b.title AS book_title,
+               l.borrow_date, l.loan_status
+        FROM loan_records l
+        JOIN accounts a ON l.account_id = a.account_id
+        JOIN book_catalog b ON l.catalog_id = b.catalog_id
+        ORDER BY l.loan_id DESC LIMIT 6""")
+
+    return render_template("adm_home.html", active="home", stats=stats, chart=chart,
+                           status_chart=status_chart, recent=recent)
+
+
+# ---------- BOOKS: list and search ----------
+@app.route("/admin/catalog")
+@login_required("admin")
+def adm_catalog():
+    term = request.args.get("q", "").strip()           # text typed in the search box
+    subject = request.args.get("subject", "").strip()  # category chosen in the dropdown
+    books = search_books(term, subject)                # helper from Part 1
+    subjects = fetch_all("SELECT subject_name FROM subjects ORDER BY subject_name")
+    return render_template("adm_catalog.html", active="catalog", books=books,
+                           subjects=subjects, term=term, subject=subject)
+
+
+# ---------- BOOKS: add and edit (one page does both) ----------
+@app.route("/admin/catalog/add", methods=["GET", "POST"], defaults={"catalog_id": None})
+@app.route("/admin/catalog/edit/<int:catalog_id>", methods=["GET", "POST"])
+@login_required("admin")
+def adm_book_form(catalog_id):
+    subjects = fetch_all("SELECT subject_id, subject_name FROM subjects ORDER BY subject_name")
+
+    # When editing, load the book that is already saved
+    existing = None
+    if catalog_id:
+        existing = fetch_one("SELECT * FROM book_catalog WHERE catalog_id = %s", (catalog_id,))
+        if existing is None:
+            flash("That book does not exist.", "error")
+            return redirect(url_for("adm_catalog"))
+
+    # The form was submitted (the admin pressed Save)
+    if request.method == "POST":
+        form = request.form
+        errors = []                                       # we collect all problems in this list
+
+        # 1. read the boxes
+        title = form.get("title", "").strip()
+        author = form.get("author", "").strip()
+        isbn = form.get("isbn", "").strip() or None       # empty text becomes None (= NULL)
+        publisher = form.get("publisher", "").strip() or None
+        ebook_link = form.get("ebook_link", "").strip() or None
+        ebook_available = form.get("ebook_available") == "yes"
+
+        # 2. check the boxes
+        if not title:
+            errors.append("Title is required.")
+        if not author:
+            errors.append("Author is required.")
+        year = to_int(form.get("publish_year"), "Year", errors, 1000, date.today().year + 1)
+        total = to_int(form.get("total_copies"), "Total copies", errors, 0, required=True)
+        subject_id = to_int(form.get("subject_id"), "Category", errors, required=True)
+
+        # the ISBN must not belong to a different book
+        if isbn:
+            clash = fetch_one("SELECT catalog_id FROM book_catalog WHERE isbn = %s AND catalog_id <> %s",
+                              (isbn, catalog_id or 0))
+            if clash:
+                errors.append("That ISBN is already used by another book.")
+
+        if ebook_available and not ebook_link:
+            errors.append("Please enter the eBook link, or choose 'No' for eBook available.")
+        if ebook_link and not ebook_link.lower().startswith(("http://", "https://")):
+            errors.append("The eBook link must start with http:// or https://")
+
+        # when editing: total copies cannot be less than the copies students have right now
+        open_loans = 0
+        if catalog_id and total is not None:
+            open_loans = fetch_one("SELECT COUNT(*) AS n FROM loan_records WHERE catalog_id = %s "
+                                   "AND loan_status IN ('Borrowed','Overdue')", (catalog_id,))["n"]
+            if total < open_loans:
+                errors.append(f"Total copies cannot be lower than the {open_loans} copies currently borrowed.")
+
+        # cover picture: keep the old one unless a new picture was chosen
+        cover_file = request.files.get("cover_image")
+        cover_name = existing["cover_image"] if existing else None
+        if cover_file and cover_file.filename:
+            if not allowed_image(cover_file.filename):
+                errors.append("Cover must be an image file (png, jpg, jpeg, gif or webp).")
+
+        # 3. if something is wrong, show the form again with the messages
+        if errors:
+            for message in errors:
+                flash(message, "error")
+            values = dict(form)                  # keep what the admin already typed
+            values["cover_image"] = cover_name
+            return render_template("adm_book_form.html", active="catalog", values=values,
+                                   subjects=subjects, editing=bool(catalog_id))
+
+        # 4. save the new cover picture with a random unique name
+        if cover_file and cover_file.filename:
+            os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+            extension = cover_file.filename.rsplit(".", 1)[1].lower()
+            cover_name = uuid.uuid4().hex + "." + extension
+            cover_file.save(os.path.join(UPLOAD_FOLDER, cover_name))
+
+        # 5. save the book in the database
+        if catalog_id:
+            # EDIT: available copies = total copies minus the copies that are out on loan
+            execute("""UPDATE book_catalog SET title=%s, author=%s, isbn=%s, publisher=%s,
+                       publish_year=%s, subject_id=%s, total_copies=%s, available_copies=%s,
+                       cover_image=%s, ebook_available=%s, ebook_link=%s WHERE catalog_id=%s""",
+                    (title, author, isbn, publisher, year, subject_id, total, total - open_loans,
+                     cover_name, ebook_available, ebook_link, catalog_id))
+            flash("Book updated successfully.", "success")
+        else:
+            # ADD: a new book starts with available copies = total copies
+            execute("""INSERT INTO book_catalog (title, author, isbn, publisher, publish_year,
+                       subject_id, total_copies, available_copies, cover_image, ebook_available, ebook_link)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                    (title, author, isbn, publisher, year, subject_id, total, total,
+                     cover_name, ebook_available, ebook_link))
+            flash("Book added successfully.", "success")
+        return redirect(url_for("adm_catalog"))
+
+    # The page was just opened (GET): show an empty form, or the saved book when editing
+    values = {}
+    if existing:
+        values = dict(existing)
+        if existing["ebook_available"]:
+            values["ebook_available"] = "yes"
+        else:
+            values["ebook_available"] = "no"
+    return render_template("adm_book_form.html", active="catalog", values=values,
+                           subjects=subjects, editing=bool(catalog_id))
+
+
+# ---------- BOOKS: delete ----------
+@app.route("/admin/catalog/delete/<int:catalog_id>", methods=["POST"])
+@login_required("admin")
+def adm_book_delete(catalog_id):
+    book = fetch_one("SELECT title, cover_image FROM book_catalog WHERE catalog_id = %s", (catalog_id,))
+    if book is None:
+        flash("That book does not exist.", "error")
+        return redirect(url_for("adm_catalog"))
+
+    # a book that students are holding cannot be deleted
+    open_loans = fetch_one("SELECT COUNT(*) AS n FROM loan_records WHERE catalog_id = %s "
+                           "AND loan_status IN ('Borrowed','Overdue')", (catalog_id,))["n"]
+    if open_loans > 0:
+        flash("'" + book["title"] + "' cannot be deleted while copies are borrowed.", "error")
+        return redirect(url_for("adm_catalog"))
+
+    execute("DELETE FROM book_catalog WHERE catalog_id = %s", (catalog_id,))
+
+    # also remove the cover picture file from the uploads folder
+    if book["cover_image"]:
+        try:
+            os.remove(os.path.join(UPLOAD_FOLDER, book["cover_image"]))
+        except OSError:
+            pass                                  # if the file is already gone, that is fine
+
+    flash("'" + book["title"] + "' was deleted.", "success")
+    return redirect(url_for("adm_catalog"))
+
+
+# ---------- CATEGORIES: list, add and edit ----------
+@app.route("/admin/subjects", methods=["GET", "POST"])
+@app.route("/admin/subjects/edit/<int:subject_id>", methods=["GET", "POST"])
+@login_required("admin")
+def adm_subjects(subject_id=None):
+    editing = None
+    if subject_id:
+        editing = fetch_one("SELECT * FROM subjects WHERE subject_id = %s", (subject_id,))
+        if editing is None:
+            flash("That category does not exist.", "error")
+            return redirect(url_for("adm_subjects"))
+
+    if request.method == "POST":
+        name = request.form.get("subject_name", "").strip()
+
+        # is there already another category with the same name? (ignore upper/lower case)
+        clash = fetch_one("SELECT subject_id FROM subjects WHERE LOWER(subject_name) = LOWER(%s) "
+                          "AND subject_id <> %s", (name, subject_id or 0))
+
+        if not name:
+            flash("Category name cannot be empty.", "error")
+        elif len(name) > 100:
+            flash("Category name is too long (maximum 100 characters).", "error")
+        elif clash:
+            flash("That category already exists.", "error")
+        else:
+            if subject_id:
+                execute("UPDATE subjects SET subject_name = %s WHERE subject_id = %s", (name, subject_id))
+                flash("Category updated successfully.", "success")
+            else:
+                execute("INSERT INTO subjects (subject_name) VALUES (%s)", (name,))
+                flash("Category added successfully.", "success")
+            return redirect(url_for("adm_subjects"))
+
+    # the table of categories, with how many books each one has
+    subjects = fetch_all("""
+        SELECT s.subject_id, s.subject_name, COUNT(b.catalog_id) AS book_count
+        FROM subjects s LEFT JOIN book_catalog b ON b.subject_id = s.subject_id
+        GROUP BY s.subject_id, s.subject_name ORDER BY s.subject_name""")
+    return render_template("adm_subjects.html", active="subjects", subjects=subjects, editing=editing)
+
+
+# ---------- CATEGORIES: delete ----------
+@app.route("/admin/subjects/delete/<int:subject_id>", methods=["POST"])
+@login_required("admin")
+def adm_subject_delete(subject_id):
+    used = fetch_one("SELECT COUNT(*) AS n FROM book_catalog WHERE subject_id = %s", (subject_id,))["n"]
+    if used > 0:
+        flash("This category is used by " + str(used) + " book(s) and cannot be deleted.", "error")
+    else:
+        execute("DELETE FROM subjects WHERE subject_id = %s", (subject_id,))
+        flash("Category deleted.", "success")
+    return redirect(url_for("adm_subjects"))
