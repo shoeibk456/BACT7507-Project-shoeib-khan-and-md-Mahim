@@ -310,7 +310,7 @@ def stu_book_view(catalog_id):
 
 
 # ============================================================
-# FEATURE 4: BORROW AND RETURN   (Shoeib)
+# FEATURE 4: BORROW AND RETURN   
 # ============================================================
 
 @app.route("/student/borrow/<int:catalog_id>", methods=["POST"])
@@ -437,3 +437,143 @@ def stu_return(loan_id):
         conn.close()
 
     return redirect(url_for("stu_my_loans"))
+
+
+
+# ============================================================
+# PART 3: EBOOK SEARCH (Google Books) AND STUDENT PROFILE
+# ============================================================
+
+# ---------- FEATURE 5: EBOOK SEARCH using the Google Books API  ----------
+
+# Turn one Google Books result into a small dictionary the HTML page can use
+def simplify_google_book(item):
+    info = item.get("volumeInfo", {})                     # the book details (title, authors...)
+    cover = info.get("imageLinks", {}).get("thumbnail")   # small cover picture address (may not exist)
+
+    # link to the book's page on Google Books (built from the book's id)
+    link = None
+    if item.get("id"):
+        link = "https://books.google.com/books?id=" + item["id"]
+
+    # Google sometimes gives http:// addresses; change them to https://
+    if cover:
+        cover = cover.replace("http://", "https://")
+
+    # join the author names with commas; if there are none, say "Unknown author"
+    authors = ", ".join(info.get("authors", []))
+    if authors == "":
+        authors = "Unknown author"
+
+    return {
+        "title": info.get("title", "Untitled"),
+        "author": authors,
+        "year": (info.get("publishedDate") or "")[:4],    # first 4 letters of the date = the year
+        "cover": cover,
+        "link": link,
+    }
+
+
+@app.route("/student/ebooks")
+@login_required("student")
+def stu_ebook_search():
+    term = request.args.get("q", "").strip()     # what the student typed in the search box
+    results = []                                 # the books we found
+    error = None                                 # a message if something goes wrong
+
+    if term:                                     # only search if something was typed
+        try:
+            # the question we send to Google
+            params = {"q": term, "maxResults": 15, "printType": "books"}
+            if GOOGLE_API_KEY:
+                params["key"] = GOOGLE_API_KEY
+
+            response = requests.get(GOOGLE_BOOKS_URL, params=params, timeout=10)
+            response.raise_for_status()          # jump to "except" if Google says there is an error
+
+            # Google puts the books in a list called "items"
+            for item in response.json().get("items", []):
+                results.append(simplify_google_book(item))
+
+        except requests.exceptions.HTTPError as problem:
+            # Google answered, but with an error number
+            if problem.response is not None and problem.response.status_code == 429:
+                error = "Google Books is busy right now (daily limit reached). Please try again later."
+            else:
+                error = "Google Books returned an error. Please try again later."
+        except requests.exceptions.RequestException:
+            # we could not reach Google at all (no internet, firewall...)
+            error = ("Could not reach Google Books. "
+                     "Please check your internet connection and try again.")
+        except ValueError:
+            # Google sent something we could not read
+            error = "Google Books sent an unexpected reply. Please try again."
+
+    return render_template("stu_ebook_search.html", active="ebooks", term=term,
+                           results=results, error=error)
+
+
+# ---------- STUDENT PROFILE ----------
+
+@app.route("/student/account", methods=["GET", "POST"])
+@login_required("student")
+def stu_account():
+    me = session["account_id"]
+
+    # the student pressed "Save" on the profile form
+    if request.method == "POST":
+        full_name = request.form.get("full_name", "").strip()
+        phone = request.form.get("phone", "").strip()
+
+        # collect every mistake in a list
+        errors = []
+        if full_name == "":
+            errors.append("Name cannot be empty.")
+        if phone != "" and not PHONE_PATTERN.match(phone):
+            errors.append("Phone number can only contain digits, spaces, + ( ) and -.")
+
+        if errors:
+            # show every mistake
+            for message in errors:
+                flash(message, "error")
+        else:
+            # no mistakes: save the changes (an empty phone is saved as NULL / nothing)
+            if phone == "":
+                phone = None
+            execute("UPDATE accounts SET full_name = %s, phone = %s WHERE account_id = %s",
+                    (full_name, phone, me))
+            session["full_name"] = full_name     # update the name shown at the top of the page
+            flash("Profile updated successfully.", "success")
+            return redirect(url_for("stu_account"))
+
+    # show the profile page with the student's saved details
+    account = fetch_one("SELECT * FROM accounts WHERE account_id = %s", (me,))
+    return render_template("stu_account.html", active="account", account=account)
+
+
+@app.route("/student/account/password", methods=["POST"])
+@login_required("student")
+def stu_change_password():
+    current = request.form.get("current_password", "")    # the old password
+    new = request.form.get("new_password", "")            # the new password
+    confirm = request.form.get("confirm_password", "")    # the new password typed again
+
+    # get the saved (scrambled) password of this student
+    account = fetch_one("SELECT password_hash FROM accounts WHERE account_id = %s",
+                        (session["account_id"],))
+
+    # check the rules one by one
+    if not check_password_hash(account["password_hash"], current):
+        flash("Your current password is not correct.", "error")
+    elif len(new) < 6:
+        flash("The new password must be at least 6 characters.", "error")
+    elif new != confirm:
+        flash("The new password and the confirmation do not match.", "error")
+    else:
+        # all good: save the new password as a hash (never as plain text)
+        new_hash = generate_password_hash(new, method="pbkdf2:sha256")
+        execute("UPDATE accounts SET password_hash = %s WHERE account_id = %s",
+                (new_hash, session["account_id"]))
+        flash("Password changed successfully.", "success")
+
+    return redirect(url_for("stu_account"))
