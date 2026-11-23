@@ -859,3 +859,164 @@ def adm_subject_delete(subject_id):
         execute("DELETE FROM subjects WHERE subject_id = %s", (subject_id,))
         flash("Category deleted.", "success")
     return redirect(url_for("adm_subjects"))
+
+    # ============================================================
+# PART 4b - ADMIN: students, borrow records, start the app  (Shoeib types this one)
+# Paste this at the very bottom of the file (after Part 4a).
+# ============================================================
+
+
+# ---------- STUDENTS: list and search ----------
+@app.route("/admin/members")
+@login_required("admin")
+def adm_members():
+    term = request.args.get("q", "").strip()
+    like = "%" + term + "%"                     # % means "anything", so this finds the text anywhere
+
+    # open_loans = how many books each student is holding right now
+    members = fetch_all("""
+        SELECT a.*, (SELECT COUNT(*) FROM loan_records l WHERE l.account_id = a.account_id
+                     AND l.loan_status IN ('Borrowed','Overdue')) AS open_loans
+        FROM accounts a
+        WHERE a.role = 'student'
+          AND (%s = '' OR a.full_name LIKE %s OR a.email LIKE %s OR a.student_id LIKE %s)
+        ORDER BY a.student_id""", (term, like, like, like))
+    return render_template("adm_members.html", active="members", members=members, term=term)
+
+
+# ---------- STUDENTS: add and edit (one page does both) ----------
+@app.route("/admin/members/add", methods=["GET", "POST"], defaults={"account_id": None})
+@app.route("/admin/members/edit/<int:account_id>", methods=["GET", "POST"])
+@login_required("admin")
+def adm_member_form(account_id):
+    # When editing, load the student that is already saved
+    existing = None
+    if account_id:
+        existing = fetch_one("SELECT * FROM accounts WHERE account_id = %s AND role = 'student'",
+                             (account_id,))
+        if existing is None:
+            flash("That student does not exist.", "error")
+            return redirect(url_for("adm_members"))
+
+    # The form was submitted
+    if request.method == "POST":
+        form = request.form
+        errors = []
+
+        # 1. read the boxes
+        student_id = form.get("student_id", "").strip()
+        full_name = form.get("full_name", "").strip()
+        email = form.get("email", "").strip().lower()
+        course = form.get("course", "").strip() or None
+        phone = form.get("phone", "").strip() or None
+        status = form.get("status", "Active")
+        password = form.get("password", "")
+
+        # 2. check the boxes
+        if not student_id:
+            errors.append("Student ID is required.")
+        if not full_name:
+            errors.append("Name is required.")
+        if not EMAIL_PATTERN.match(email):
+            errors.append("Please enter a valid email address.")
+        if phone and not PHONE_PATTERN.match(phone):
+            errors.append("Phone number can only contain digits, spaces, + ( ) and -.")
+        if status not in ("Active", "Inactive"):
+            errors.append("Status must be Active or Inactive.")
+
+        # the email and the student ID must not belong to someone else
+        if fetch_one("SELECT account_id FROM accounts WHERE email = %s AND account_id <> %s",
+                     (email, account_id or 0)):
+            errors.append("That email address is already registered.")
+        if student_id and fetch_one("SELECT account_id FROM accounts WHERE student_id = %s AND account_id <> %s",
+                                    (student_id, account_id or 0)):
+            errors.append("That student ID is already used.")
+
+        # password rules: required when adding, optional when editing
+        if not account_id and len(password) < 6:
+            errors.append("A starting password of at least 6 characters is required.")
+        if account_id and password and len(password) < 6:
+            errors.append("The new password must be at least 6 characters.")
+
+        # 3. if something is wrong, show the form again
+        if errors:
+            for message in errors:
+                flash(message, "error")
+            return render_template("adm_member_form.html", active="members", values=dict(form),
+                                   editing=bool(account_id))
+
+        # 4. save in the database
+        if account_id:
+            if password:       # only change the password when a new one was typed
+                new_hash = generate_password_hash(password, method="pbkdf2:sha256")
+                execute("""UPDATE accounts SET student_id=%s, full_name=%s, email=%s, course=%s,
+                           phone=%s, status=%s, password_hash=%s WHERE account_id=%s""",
+                        (student_id, full_name, email, course, phone, status, new_hash, account_id))
+            else:
+                execute("""UPDATE accounts SET student_id=%s, full_name=%s, email=%s, course=%s,
+                           phone=%s, status=%s WHERE account_id=%s""",
+                        (student_id, full_name, email, course, phone, status, account_id))
+            flash("Student updated successfully.", "success")
+        else:
+            new_hash = generate_password_hash(password, method="pbkdf2:sha256")
+            execute("""INSERT INTO accounts (student_id, full_name, email, password_hash, role,
+                       course, phone, status) VALUES (%s,%s,%s,%s,'student',%s,%s,%s)""",
+                    (student_id, full_name, email, new_hash, course, phone, status))
+            flash("Student added successfully.", "success")
+        return redirect(url_for("adm_members"))
+
+    # The page was just opened (GET): empty form, or the saved student when editing
+    values = {}
+    if existing:
+        values = dict(existing)
+    return render_template("adm_member_form.html", active="members", values=values,
+                           editing=bool(account_id))
+
+
+# ---------- STUDENTS: delete ----------
+@app.route("/admin/members/delete/<int:account_id>", methods=["POST"])
+@login_required("admin")
+def adm_member_delete(account_id):
+    student = fetch_one("SELECT full_name FROM accounts WHERE account_id = %s AND role = 'student'",
+                        (account_id,))
+    if student is None:
+        flash("That student does not exist.", "error")
+        return redirect(url_for("adm_members"))
+
+    # a student who still holds books cannot be deleted
+    open_loans = fetch_one("SELECT COUNT(*) AS n FROM loan_records WHERE account_id = %s "
+                           "AND loan_status IN ('Borrowed','Overdue')", (account_id,))["n"]
+    if open_loans > 0:
+        flash(student["full_name"] + " still has borrowed books and cannot be deleted.", "error")
+        return redirect(url_for("adm_members"))
+
+    execute("DELETE FROM accounts WHERE account_id = %s", (account_id,))
+    flash(student["full_name"] + " was deleted.", "success")
+    return redirect(url_for("adm_members"))
+
+
+# ---------- BORROW RECORDS: read-only list with search and status filter ----------
+@app.route("/admin/loans")
+@login_required("admin")
+def adm_loan_records():
+    refresh_overdue()
+    term = request.args.get("q", "").strip()          # search text
+    status = request.args.get("status", "").strip()   # Borrowed / Returned / Overdue (or empty = all)
+    like = "%" + term + "%"
+
+    loans = fetch_all("""
+        SELECT l.loan_id, a.full_name AS student_name, a.student_id, b.title AS book_title,
+               l.borrow_date, l.due_date, l.return_date, l.loan_status
+        FROM loan_records l
+        JOIN accounts a ON l.account_id = a.account_id
+        JOIN book_catalog b ON l.catalog_id = b.catalog_id
+        WHERE (%s = '' OR l.loan_status = %s)
+          AND (%s = '' OR a.full_name LIKE %s OR a.student_id LIKE %s OR b.title LIKE %s)
+        ORDER BY l.loan_id DESC""", (status, status, term, like, like, like))
+    return render_template("adm_loan_records.html", active="loans", loans=loans,
+                           term=term, status=status)
+
+
+# ---------- START THE APP (always the last lines of the file) ----------
+if __name__ == "__main__":
+    app.run(debug=True)       # debug=True shows detailed errors while we develop
